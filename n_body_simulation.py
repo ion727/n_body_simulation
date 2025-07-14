@@ -62,13 +62,13 @@ class Planet:
             for pos in self.trail:
                 pygame.draw.circle(surface, self.colour, pos, 1)
         if info_toggle is True:
-            pygame.draw.line(surface, (255,0,0), (int(self.x), int(self.y)), (int(self.x + self.ax/self.mass*100), int(self.y+self.ay/self.mass*100)), 3)
+            pygame.draw.line(surface, (255,0,0), (int(self.x), int(self.y)), (int(self.x + self.ax/self.mass*50), int(self.y+self.ay/self.mass*50)), 3)
             pygame.draw.line(surface, (255,255,0), (int(self.x), int(self.y)), (int(self.x + self.dx/self.mass), int(self.y+self.dy/self.mass)), 3)
 
 class System:
     def __str__(self):
         return "[" + "\n ".join([f"{planet.index}: ({int(planet.x)}, {int(planet.y)}), collided={planet.collided}" for planet in self.planets]) + "]\n"
-    def __init__(self, n, HEIGHT, WIDTH, no_collision=False, stable=False):
+    def __init__(self, HEIGHT, WIDTH, *, n, no_collision=False, stable=False, sun=False):
         self.HEIGHT = HEIGHT
         self.WIDTH = WIDTH
         self.r = min(HEIGHT,WIDTH) // 4
@@ -80,7 +80,7 @@ class System:
         self.no_collision = no_collision
         for i in range(n):
             theta = 2 * math.pi * i / n  # Evenly spaced angle around circle
-            if i == 0:
+            if i == 0 and sun is True:
                 self.planets.append(Planet((self.WIDTH // 2 + self.r*math.cos(theta), self.HEIGHT // 2 + self.r*math.sin(theta)), parent=self, index=i, stable=stable, sun=True))
                 continue
             self.planets.append(Planet((self.WIDTH // 2 + self.r*math.cos(theta), self.HEIGHT // 2 + self.r*math.sin(theta)), parent=self, index=i, stable=stable))
@@ -138,7 +138,7 @@ def main():
     stable          --      planets begin with perfectly circular motion (subject to lose balance depending on computational accuracy) when True
     sun             --      one planet is replaced with a sun (800-1000 times heavier) when True
     '''
-    system = System(n=3, HEIGHT, WIDTH, no_collision=False, stable=False, sun=False)
+    system = System(HEIGHT, WIDTH, n=3, no_collision=False, stable=False, sun=False)
     while running:
         d_time = clock.tick(60) / 1000.0
         WINDOW.fill((0,0,0))
