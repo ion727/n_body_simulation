@@ -27,3 +27,10 @@ While the program is running, the following keys can be pressed to various effec
 `t`     -- show/hide planet trails (toggle)
 
 `r`     -- half all planet's velocities
+
+## preferences.txt
+The following settings can be set to 1 (True) or 0 (False) in the `preferences.txt` file manually. Any toggle updated during the simulation's runtime will automatically be saved to `preferences.txt`.
+
+`info_toggle` -- displays/hides planet velocity (yellow) and net gravitational force (red)
+
+`trail_toggle` -- shows/hides each planet's past positions.

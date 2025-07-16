@@ -128,8 +128,10 @@ def main():
     pygame.display.set_caption("N-Body Simulation")
     clock = pygame.time.Clock()
     running = True
-    info_toggle = False
-    trail_toggle = True
+    with open("preferences.txt", "r") as fp:
+        prefs = fp.readlines()
+        info_toggle, trail_toggle = (bool(int(line.strip("\n")[-1])) for line in prefs)
+
     paused = True
     ######## CONTROL CENTER ########
     '''
@@ -146,6 +148,8 @@ def main():
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
+                with open("preferences.txt", "w") as fp:
+                    fp.write(f"info_toggle = {int(info_toggle)}\ntrail_toggle = {int(trail_toggle)}")
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_SPACE:
                     info_toggle = not info_toggle

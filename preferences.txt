@@ -1,0 +1,2 @@
+info_toggle = 1
+trail_toggle = 1
