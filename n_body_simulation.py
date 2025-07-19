@@ -11,8 +11,8 @@ class Planet:
     def __init__(self, coords=(0,0), /, *, mass = random.randint(200000,300000), parent=None, index=None, stable=False, sun=False):
         self.x, self.y = coords
         self.ax = self.ay = 0
-        self.mass = mass
-        self.radius = 5 if stable is False else 1
+        self.mass = mass if stable is False else 300000
+        self.radius = 20 / parent.n
         self.colour = (random.randint(100,255), random.randint(100,255), random.randint(100,255))
         self.index = index
         if sun is True:
@@ -140,7 +140,7 @@ def main():
     stable          --      planets begin with perfectly circular motion (subject to lose balance depending on computational accuracy) when True
     sun             --      one planet is replaced with a sun (800-1000 times heavier) when True
     '''
-    system = System(HEIGHT, WIDTH, n=3, no_collision=False, stable=False, sun=False)
+    system = System(HEIGHT, WIDTH, n=16, no_collision=False, stable=True, sun=False)
     while running:
         d_time = clock.tick(60) / 1000.0
         WINDOW.fill((0,0,0))
