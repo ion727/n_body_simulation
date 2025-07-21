@@ -1,6 +1,7 @@
 '''
 author: ion727
-date of completion: 19/07/2025
+date of functional completion: 19/07/2025
+date of qualitative completion: INCOMPLETE
 '''
 import random
 import pygame
@@ -121,14 +122,14 @@ class System:
                 continue
             self.planets.append(Planet((x, y), parent=self, index=i))
 
-    def tick(self, d_time, info_toggle, trail_toggle, no_erase):
+    def tick(self):
         for current in self.planets:
-            if bool(current.collided) is True:
+            if any((current.collided, current.expulsed)) is True:
                 continue
             current.ax = mpf(0)
             current.ay = mpf(0)
             for planet in self.planets:
-                if current is planet or planet.collided is True:
+                if current is planet or any((current.collided, current.expulsed)) is True:
                     continue
                 if current.subtick(planet) == 1 and self.no_collision is False:
                     if not current.is_sun:
@@ -138,10 +139,15 @@ class System:
                         planet.collided = True
                         self.not_collided -= 1
                     break
+    def draw_planets(self, info_toggle, trail_toggle):
         for planet in self.planets:
-            if planet.collided:
+            if any((planet.collided, planet.expulsed)):
                 continue
             planet.draw(self.WINDOW, info_toggle, trail_toggle)
+    def update_all(self, d_time, trail_toggle, no_erase):
+        for planet in self.planets:
+            if any((planet.collided, planet.expulsed)):
+                continue
             planet.update(d_time, trail_toggle, no_erase)
 
 
@@ -239,6 +245,7 @@ def main(n=2,*,precise_mode=False, precision=-1, no_collision=False, stable=Fals
                     with open(save, "w") as fp:
                         fp.write( \
 f"""n={len(system.planets)};
+precise_mode={int(precise_mode)};
 precision={int(precision)};
 info_toggle={int(info_toggle)};
 trail_toggle={int(trail_toggle)};
@@ -261,14 +268,12 @@ no_erase={int(no_erase)};""")
                         planet.dx /= 2
                         planet.dy /= 2
 
-        
         if paused:
-            for planet in system.planets:
-                if planet.collided:
-                    continue
-                planet.draw(WINDOW, info_toggle, trail_toggle)
+            system.draw_planets(info_toggle, trail_toggle)
         else:
-            system.tick(d_time, info_toggle, trail_toggle, no_erase)
+            system.tick()
+            system.draw_planets(info_toggle, trail_toggle)
+            system.update_all(d_time, trail_toggle, no_erase)
         if info_toggle == True:
             render_planet_info(WINDOW, system.planets, font)
         pygame.display.update()

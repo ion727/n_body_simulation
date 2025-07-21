@@ -10,6 +10,10 @@ The following options can be either changed manually line 160 or enabled/disable
 
 `-n` *PLANETS*              --      number of planets to be simulated (recommended <200 on lower-end systems)
 
+`-p` *digits* -- manually sets computational precision to *digits* digits (can lead to stuttering at high values), default is -1
+
+`-P` -- enables Precise Mode, considerably improving simulation accuracy at the cost of animation smoothness
+
 `--no_collision`    --      self-explanitory, collisions do not remove planets when True
 
 `--stable`          --      planets begin with perfectly circular motion when True
@@ -22,21 +26,20 @@ The following options can be either changed manually line 160 or enabled/disable
 
 `--no_erase`         --   planets leave a permanent trail which can be erased with `t` keybind.
 
-`-p` *digits* -- manually sets computational precision to *digits* digits (can lead to stuttering at high values), default is -1
 ## controls
 While the program is running, the following keys can be pressed to various effects:
 
 
-`SPACE` -- display net gravitational force and velocity (toggle) as well as all planets' locations
+`SPACE` -- display 1/5 of net gravitational force and velocity (toggle) as well as all planets' locations (1/5 to avoid covering the entire screen)
 
 `p`     -- pause and unpause simulation
 
-`t`     -- show/hide planet trails (toggle)
+`t`     -- show/delete & hide planet trails (toggle)
 
 `r`     -- half all planet's velocities
 
 ## preferences.txt
-The following settings can be set to 1 (True) or 0 (False) in the `preferences.txt` file manually. Any toggle updated during the simulation's runtime will automatically be saved to `preferences.txt` if `--save_prefs` is used and can be loaded using --load
+The following additional settings can be set to 1 (True) or 0 (False) in the `preferences.txt` file manually. Any flags used as command-line arguments override `preferences.txt`.
 
 `info_toggle` -- displays/hides planet velocity (yellow) and net gravitational force (red)
 
