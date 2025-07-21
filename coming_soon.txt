@@ -1,0 +1,4 @@
+figure out speed (WIP)
+make red lines appear on time (currently 1 frame late) WHEN PAUSED
+make collided planets' trails be drawn on behalf of system
+fix/overhaul file loading

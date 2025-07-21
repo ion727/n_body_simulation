@@ -1,31 +1,44 @@
 '''
 author: ion727
-date of completion: 13/07/2025
+date of completion: 19/07/2025
 '''
-
 import random
-import math
 import pygame
+from mpmath import mp, mpf, sqrt, sin, cos, atan2, ceil, root
+
+class Constants:
+    G = mpf("6.67430e-11")
+    Simulation_Scale = mpf("7")
+    mass_const = mpf(1e14)
+    #@property
+    def rand_mass():
+        return random.randint(int(2*Constants.mass_const),int(3*Constants.mass_const))
 
 class Planet:
-    def __init__(self, coords=(0,0), /, *, mass = random.randint(200000,300000), parent=None, index=None, stable=False, sun=False):
-        self.x, self.y = coords
-        self.ax = self.ay = 0
-        self.mass = mass if stable is False else 300000
-        self.radius = 20 / parent.n
+    def __init__(self, coords=(0,0), /, *, parent=None, index=None, sun=False):
+        self.parent = parent
+        self.x, self.y = mpf(coords[0]), mpf(coords[1])
+        self.ax = self.ay = mpf(0)
+        self.mass = mpf(Constants.rand_mass() if parent.stable is False else 3e14)
+        self.radius = max(int(ceil(mpf(20) / mpf(parent.n))), mpf(2))
         self.colour = (random.randint(100,255), random.randint(100,255), random.randint(100,255))
         self.index = index
         if sun is True:
-            self.mass *= random.randint(800, 1000)
-        self.parent = parent
+            self.mass *= mpf(random.randint(800, 1000))
         self.collided = False
+        self.expulsed = False
         self.trail = []
+        self.is_sun = sun
+        if sun:
+            self.radius *= 3
 
-        theta = math.atan2(self.y - parent.HEIGHT / 2, self.x - parent.WIDTH / 2)
-        speed = mass*random.uniform(50, 52 if stable is False else 50)
-        self.dx = -math.sin(theta) * speed
-        self.dy =  math.cos(theta) * speed
+        # Compute angle between current planet and system center
+        theta = atan2(self.y - mpf(parent.HEIGHT) / 2, self.x - mpf(parent.WIDTH) / 2)
+        speed =  mpf(200*root(parent.n, 4)*Constants.mass_const)
+        self.dx = -sin(theta) * speed
+        self.dy =  cos(theta) * speed
 
+        # Set last body's velocity to balance net momentum to zero
         if self.index != parent.n - 1:
             self.parent.initial_velocities_x.append(self.dx)
             self.parent.initial_velocities_y.append(self.dy)
@@ -33,84 +46,109 @@ class Planet:
             self.dx = -sum(self.parent.initial_velocities_x)
             self.dy = -sum(self.parent.initial_velocities_y)
 
-        
     def subtick(self, planet):
         """
         OUTPUT:
         0 -- updated successfully
-        1 -- collision
-
+        1 -- collision/expulsion
         """
-        r = math.dist((self.x, self.y), (planet.x, planet.y))
-        if r <= self.radius + planet.radius:
+        if not ((0 < self.x < self.parent.WIDTH) and (0 < self.y < self.parent.HEIGHT)):
+            self.expulsed = True
             return 1
-        F = Constants.Simulation_Speed*Constants.G*self.mass*planet.mass/r**2
-        self.ax += F*(planet.x - self.x)/r/self.parent.not_collided
-        self.ay += F*(planet.y - self.y)/r/self.parent.not_collided
-        self.dx += F*(planet.x - self.x)/r/self.parent.not_collided
-        self.dy += F*(planet.y - self.y)/r/self.parent.not_collided
+        dx = planet.x - self.x
+        dy = planet.y - self.y
+        r = sqrt(dx**2 + dy**2)
+        if (r <= self.radius + planet.radius) and (self.parent.no_collision is False):
+            return 1
+        F = ((not self.parent.solar_system)*mpf(Constants.Simulation_Scale) + mpf(0.01)) * Constants.G * self.mass * planet.mass / r**2
+        frac = F / r / sqrt(self.parent.not_collided)
+        delta_x = dx*frac
+        delta_y = dy*frac
+        self.ax += delta_x
+        self.ay += delta_y
+        self.dx += delta_x
+        self.dy += delta_y
         return 0
-    def update(self, d_time):
-        self.x += self.dx / self.mass * d_time
-        self.y += self.dy / self.mass * d_time
-        self.trail.append((int(self.x), int(self.y)))
-        if len(self.trail) > 75:
-            self.trail.pop(0)
-    def draw(self, surface, info_toggle, trail_toggle):        
-        pygame.draw.circle(surface, self.colour, (int(self.x), int(self.y)), self.radius)
+
+    def update(self, d_time, trail_toggle, no_erase):
+        self.x += self.dx / self.mass * mpf(d_time)
+        self.y += self.dy / self.mass * mpf(d_time)
         if trail_toggle is True:
-            for pos in self.trail:
-                pygame.draw.circle(surface, self.colour, pos, 1)
+            self.trail.append((int(self.x), int(self.y)))
+            if no_erase is False and len(self.trail) > 75:
+                self.trail.pop(0)#
+
+    def draw(self, surface, info_toggle, trail_toggle):        
+        pygame.draw.circle(surface, self.colour, (int(self.x), int(self.y)), int(self.radius))
+        if trail_toggle is True:
+            if len(self.trail) > 1:
+                pygame.draw.aalines(surface, self.colour, False, self.trail)
         if info_toggle is True:
-            pygame.draw.line(surface, (255,0,0), (int(self.x), int(self.y)), (int(self.x + self.ax/self.mass*50), int(self.y+self.ay/self.mass*50)), 3)
-            pygame.draw.line(surface, (255,255,0), (int(self.x), int(self.y)), (int(self.x + self.dx/self.mass), int(self.y+self.dy/self.mass)), 3)
+            pygame.draw.line(surface, (150,0,0), 
+                             (int(self.x), int(self.y)), 
+                             (int(self.x + float(self.ax / self.mass * 10)), 
+                              int(self.y + float(self.ay / self.mass * 10))), 3)
+            pygame.draw.line(surface, (150,150,0), 
+                             (int(self.x), int(self.y)), 
+                             (int(self.x + float(self.dx / self.mass/5)), 
+                              int(self.y + float(self.dy / self.mass/5))), 3)
 
 class System:
     def __str__(self):
         return "[" + "\n ".join([f"{planet.index}: ({int(planet.x)}, {int(planet.y)}), collided={planet.collided}" for planet in self.planets]) + "]\n"
-    def __init__(self, HEIGHT, WIDTH, *, n, no_collision=False, stable=False, sun=False):
+
+    def __init__(self, WINDOW, HEIGHT, WIDTH, *, n, no_collision=False, stable=False, sun=False):
+        self.WINDOW = WINDOW
         self.HEIGHT = HEIGHT
         self.WIDTH = WIDTH
-        self.r = min(HEIGHT,WIDTH) // 4
+        self.r = min(HEIGHT, WIDTH) // 4
         self.n = n
         self.not_collided = n
         self.planets = []
         self.initial_velocities_x = []
         self.initial_velocities_y = []
         self.no_collision = no_collision
+        self.solar_system = sun
+        self.stable = stable
+
+
         for i in range(n):
-            theta = 2 * math.pi * i / n  # Evenly spaced angle around circle
+            theta = mpf(2) * mp.pi * i / n  # Evenly spaced angle around circle
+            x = mpf(self.WIDTH // 2) + self.r * cos(theta)
+            y = mpf(self.HEIGHT // 2) + self.r * sin(theta)
             if i == 0 and sun is True:
-                self.planets.append(Planet((self.WIDTH // 2 + self.r*math.cos(theta), self.HEIGHT // 2 + self.r*math.sin(theta)), parent=self, index=i, stable=stable, sun=True))
+                self.planets.append(Planet((x, y), parent=self, index=i, sun=True))
                 continue
-            self.planets.append(Planet((self.WIDTH // 2 + self.r*math.cos(theta), self.HEIGHT // 2 + self.r*math.sin(theta)), parent=self, index=i, stable=stable))
-    def tick(self, d_time):
+            self.planets.append(Planet((x, y), parent=self, index=i))
+
+    def tick(self, d_time, info_toggle, trail_toggle, no_erase):
         for current in self.planets:
-            if current.collided == 1:
+            if bool(current.collided) is True:
                 continue
-            current.ax = 0
-            current.ay = 0
+            current.ax = mpf(0)
+            current.ay = mpf(0)
             for planet in self.planets:
                 if current is planet or planet.collided is True:
                     continue
                 if current.subtick(planet) == 1 and self.no_collision is False:
-                    current.collided = True
-                    planet.collided = True
-                    self.not_collided -= 2
+                    if not current.is_sun:
+                        current.collided = True
+                        self.not_collided -= 1
+                    if not planet.is_sun:
+                        planet.collided = True
+                        self.not_collided -= 1
                     break
         for planet in self.planets:
             if planet.collided:
                 continue
-            planet.update(d_time)
+            planet.draw(self.WINDOW, info_toggle, trail_toggle)
+            planet.update(d_time, trail_toggle, no_erase)
 
-class Constants:
-    G = 6.67430e-11
-    Simulation_Speed = 7000000000
 
 def render_planet_info(surface, planets, font, alpha=200, x=10, y=10, spacing=4):
     lines = []
     for i, planet in enumerate(planets):
-        text = f"{i+1:<2}| COLLIDED" if planet.collided else f"{i+1:<2}| ({int(planet.x)}, {int(planet.y)})"
+        text = f"{i+1:<2}| EXPULSED" if planet.expulsed else f"{i+1:<2}| COLLIDED" if planet.collided else f"{i+1:<2}| ({int(planet.x)}, {int(planet.y)})"
         lines.append(text)
 
     for k, line in enumerate(lines):
@@ -119,8 +157,62 @@ def render_planet_info(surface, planets, font, alpha=200, x=10, y=10, spacing=4)
         text_surf.set_alpha(alpha)
         surface.blit(text_surf, (x, y + k * (font.get_height() + spacing)))
 
+def load_settings(load, **overrides):
+    # Default settings
+    settings = {
+        "n": 2,
+        "precision" : -1,
+        "info_toggle": False,
+        "trail_toggle": False,
+        "no_collision": False,
+        "stable": False,
+        "sun": False,
+        "no_erase":False
+    }
+    try:
+        with open(load, "r") as fp:
+            for line in fp:
+                line = line.strip().rstrip(";")
+                if (not line) or ("=" not in line):
+                    continue
+                key, value = line.split("=", 1)
+                key = key.strip()
+                value = value.strip()
+                if key in settings:
+                    if key in ("n","precision"):
+                        settings[key] = int(value)
+                    else:
+                        settings[key] = bool(int(value))
+    except FileNotFoundError:
+        raise FileNotFoundError("LOAD file not found.")
 
-def main():
+    for key, val in overrides.items():
+        if key not in settings:
+            raise ValueError(f"Unexpected argument: {key}")
+            settings[key] = val
+
+    return (
+        settings["n"],
+        settings["precision"],
+        settings["info_toggle"],
+        settings["trail_toggle"],
+        settings["no_collision"],
+        settings["stable"],
+        settings["sun"],
+        settings["no_erase"]
+    )
+
+def main(n=2,*,precise_mode=False, precision=-1, no_collision=False, stable=False, sun=False, save=None, load=None, no_erase=False):
+    info_toggle = False
+    trail_toggle = True
+    default_file = "preferences.txt"
+    if load:
+        n, precision, info_toggle, trail_toggle, no_collision, stable, sun, no_erase = load_settings(n=n, no_collision=no_collision, stable=stable, sun=sun, precision=precision, no_erase=no_erase)
+
+    if (type(precision) is not int) or (precision == -1):
+        mp.dps = 2048 // n
+    else:
+        mp.dps = precision
     pygame.init()
     WIDTH = HEIGHT = 800
     WINDOW = pygame.display.set_mode((WIDTH, HEIGHT))
@@ -128,46 +220,72 @@ def main():
     pygame.display.set_caption("N-Body Simulation")
     clock = pygame.time.Clock()
     running = True
-    with open("preferences.txt", "r") as fp:
-        prefs = fp.readlines()
-        info_toggle, trail_toggle = (bool(int(line.strip("\n")[-1])) for line in prefs)
-
     paused = True
-    ######## CONTROL CENTER ########
-    '''
-    n               --      number of planets to be simulated (recommended <200 on lower-end systems)
-    no_collision    --      self-explanitory, collisions do not remove planets when True
-    stable          --      planets begin with perfectly circular motion (subject to lose balance depending on computational accuracy) when True
-    sun             --      one planet is replaced with a sun (800-1000 times heavier) when True
-    '''
-    system = System(HEIGHT, WIDTH, n=16, no_collision=False, stable=True, sun=False)
+
+    #### SYSTEM CREATION HERE ####
+    system = System(WINDOW, HEIGHT, WIDTH, n=n, no_collision=no_collision, stable=stable, sun=sun)
+
+
     while running:
-        d_time = clock.tick(60) / 1000.0
+        d_time = (clock.tick(60) / 1000.0) if precise_mode is False else mpf(0.003125)*system.n
         WINDOW.fill((0,0,0))
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
-                with open("preferences.txt", "w") as fp:
-                    fp.write(f"info_toggle = {int(info_toggle)}\ntrail_toggle = {int(trail_toggle)}")
+                if save:
+                    if type(save) is not str:
+                        save = default_file
+                    with open(save, "w") as fp:
+                        fp.write( \
+f"""n={len(system.planets)};
+precision={int(precision)};
+info_toggle={int(info_toggle)};
+trail_toggle={int(trail_toggle)};
+no_collision={int(no_collision)};
+stable={int(stable)};
+sun={int(sun)};
+no_erase={int(no_erase)};""")
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_SPACE:
                     info_toggle = not info_toggle
                 if event.key == pygame.K_t:
                     trail_toggle = not trail_toggle
+                    if trail_toggle is False:
+                        for planet in system.planets:
+                            planet.trail = []
                 if event.key == pygame.K_p:
                     paused = not paused
                 if event.key == pygame.K_r:
                     for planet in system.planets:
                         planet.dx /= 2
                         planet.dy /= 2
-        for planet in system.planets:
-            if planet.collided:
-                continue
-            planet.draw(WINDOW, info_toggle, trail_toggle)
-        if not paused:
-            system.tick(d_time)
-        render_planet_info(WINDOW, system.planets, font)
+
+        
+        if paused:
+            for planet in system.planets:
+                if planet.collided:
+                    continue
+                planet.draw(WINDOW, info_toggle, trail_toggle)
+        else:
+            system.tick(d_time, info_toggle, trail_toggle, no_erase)
+        if info_toggle == True:
+            render_planet_info(WINDOW, system.planets, font)
         pygame.display.update()
 
-main()
+if __name__ == "__main__":
+    description = """\
+./n_body_simulation.py [-n PLANETS] [-p DIGITS] [--no_collision] [--stable] [--sun] [--save] [--load FILE] [--no-erase]
+A simple n-body simulation, check out ./README.md for more info.
+
+-n PLANETS     | represents the number of planets to be simulated.
+-p DIGITS      | manually sets computational precision to DIGITS digits (can lead to stuttering at high values). Default is -1 (2048 distributed across planets).
+-P             | Enables Precise Mode, considerably increasing simulation precision by disregarding animation smoothness
+--no_collision | prevents colliding planets from being deleted.
+--stable       | makes planets' mass and starting velocities equal, leading to a gravitational equilibrium.
+--sun          | selects a planet to be 800-1000 times heavier, acting like a sun.
+--save FILE    | upon closing the simulation, save prefs to FILE or `preferences.txt` if no FILE is provided. 
+--load FILE    | loads the preferences found at FILE, defaulting to `preferences.txt` if no FILE is provided. Loaded prefs are overriden by their respective flags.
+--no_erase     | planets leave a permanent trail which can be erased with `t` keybind.
+"""
+    main(8, precise_mode=True, precision=-1, no_collision=False, stable=True, sun=False, save=None, load=None, no_erase=True)

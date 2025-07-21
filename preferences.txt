@@ -1,2 +1,9 @@
-info_toggle = 1
-trail_toggle = 1
+n=2;
+precision=-1;
+precise_mode=1;
+info_toggle=0;
+trail_toggle=1;
+no_collision=0;
+stable=1;
+sun=0;
+no_erase=1;
