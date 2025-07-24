@@ -1,4 +1,10 @@
+
 figure out speed (WIP)
+
 make red lines appear on time (currently 1 frame late) WHEN PAUSED
+--> FIX: during paused, calculate ax & ay instead of tick() as a whole
+
 make collided planets' trails be drawn on behalf of system
++ adjustable trail lengths
+
 fix/overhaul file loading
