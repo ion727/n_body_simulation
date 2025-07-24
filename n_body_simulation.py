@@ -1,7 +1,5 @@
 '''
 author: ion727
-date of functional completion: 19/07/2025
-date of qualitative completion: INCOMPLETE
 '''
 import random
 import pygame
@@ -26,7 +24,7 @@ class Planet:
         self.index = index
         if sun is True:
             self.mass *= mpf(random.randint(800, 1000))
-        self.collided = False
+        self.removed = False
         self.expulsed = False
         self.trail = []
         self.is_sun = sun
@@ -51,18 +49,21 @@ class Planet:
         """
         OUTPUT:
         0 -- updated successfully
-        1 -- collision/expulsion
+        1 -- collision
+        2 -- expulsion
         """
-        if not ((0 < self.x < self.parent.WIDTH) and (0 < self.y < self.parent.HEIGHT)):
-            self.expulsed = True
-            return 1
+        h_WIDTH = self.parent.WIDTH // 2
+        h_HEIGHT = self.parent.HEIGHT // 2
+        if not ((-h_WIDTH < self.x < h_WIDTH*3) and (-h_HEIGHT < self.y < h_HEIGHT*3)):
+            return 2
+
         dx = planet.x - self.x
         dy = planet.y - self.y
         r = sqrt(dx**2 + dy**2)
         if (r <= self.radius + planet.radius) and (self.parent.no_collision is False):
             return 1
         F = ((not self.parent.solar_system)*mpf(Constants.Simulation_Scale) + mpf(0.01)) * Constants.G * self.mass * planet.mass / r**2
-        frac = F / r / sqrt(self.parent.not_collided)
+        frac = F / r / sqrt(self.parent.total_remaining)
         delta_x = dx*frac
         delta_y = dy*frac
         self.ax += delta_x
@@ -74,6 +75,8 @@ class Planet:
     def update(self, d_time, trail_toggle, no_erase):
         self.x += self.dx / self.mass * mpf(d_time)
         self.y += self.dy / self.mass * mpf(d_time)
+        if not isinstance(self.x, mpf) or not isinstance(self.y, mpf):
+            raise ValueError(f"Warning: Invalid position x={self.x}, y={self.y} for planet {self.index}")
         if trail_toggle is True:
             self.trail.append((int(self.x), int(self.y)))
             if no_erase is False and len(self.trail) > 75:
@@ -85,18 +88,18 @@ class Planet:
             if len(self.trail) > 1:
                 pygame.draw.aalines(surface, self.colour, False, self.trail)
         if info_toggle is True:
-            pygame.draw.line(surface, (150,0,0), 
+            pygame.draw.line(surface, (200,0,0), 
                              (int(self.x), int(self.y)), 
                              (int(self.x + float(self.ax / self.mass * 10)), 
                               int(self.y + float(self.ay / self.mass * 10))), 3)
-            pygame.draw.line(surface, (150,150,0), 
+            pygame.draw.line(surface, (200,200,0), 
                              (int(self.x), int(self.y)), 
                              (int(self.x + float(self.dx / self.mass/5)), 
                               int(self.y + float(self.dy / self.mass/5))), 3)
 
 class System:
     def __str__(self):
-        return "[" + "\n ".join([f"{planet.index}: ({int(planet.x)}, {int(planet.y)}), collided={planet.collided}" for planet in self.planets]) + "]\n"
+        return "[" + "\n ".join([f"{planet.index}: ({int(planet.x)}, {int(planet.y)}), removed={planet.removed}" for planet in self.planets]) + "]\n"
 
     def __init__(self, WINDOW, HEIGHT, WIDTH, *, n, no_collision=False, stable=False, sun=False):
         self.WINDOW = WINDOW
@@ -104,13 +107,14 @@ class System:
         self.WIDTH = WIDTH
         self.r = min(HEIGHT, WIDTH) // 4
         self.n = n
-        self.not_collided = n
+        self.total_remaining = n
         self.planets = []
         self.initial_velocities_x = []
         self.initial_velocities_y = []
         self.no_collision = no_collision
         self.solar_system = sun
         self.stable = stable
+        self.paused = True
 
 
         for i in range(n):
@@ -123,38 +127,48 @@ class System:
             self.planets.append(Planet((x, y), parent=self, index=i))
 
     def tick(self):
-        for current in self.planets:
-            if any((current.collided, current.expulsed)) is True:
-                continue
+        for current in self.remaining_planets:
             current.ax = mpf(0)
             current.ay = mpf(0)
-            for planet in self.planets:
-                if current is planet or any((current.collided, current.expulsed)) is True:
+            for planet in self.remaining_planets:
+                if current is planet:
                     continue
-                if current.subtick(planet) == 1 and self.no_collision is False:
+                out=current.subtick(planet)
+                if out == 1 and self.no_collision is False:
                     if not current.is_sun:
-                        current.collided = True
-                        self.not_collided -= 1
+                        current.removed = True
+                        self.total_remaining -= 1
+                        #print(f"planet 1: {current.index}: COLLIDED. Remaining: {self.total_remaining}")
                     if not planet.is_sun:
-                        planet.collided = True
-                        self.not_collided -= 1
+                        planet.removed = True
+                        self.total_remaining -= 1
+                        #print(f"planet 2: {planet.index}: COLLIDED. Remaining: {self.total_remaining}")
+                    break
+                elif out == 2:
+                    current.removed = True
+                    current.expulsed = True
+                    self.total_remaining -= 1
+                    #print(f"planet {current.index}: EXPULSED. Remaining: {self.total_remaining}")
                     break
     def draw_planets(self, info_toggle, trail_toggle):
-        for planet in self.planets:
-            if any((planet.collided, planet.expulsed)):
-                continue
+        for planet in self.remaining_planets:
             planet.draw(self.WINDOW, info_toggle, trail_toggle)
     def update_all(self, d_time, trail_toggle, no_erase):
-        for planet in self.planets:
-            if any((planet.collided, planet.expulsed)):
-                continue
+        for planet in self.remaining_planets:
             planet.update(d_time, trail_toggle, no_erase)
-
+    def check_status(self):
+        if self.total_remaining == 0:
+            self.paused = True
+        if self.total_remaining < 0:
+            raise ValueError(f"Remaining planets: expected positive integer, got {self.total_remaining}")
+    @property
+    def remaining_planets(self):
+        return (planet for planet in self.planets if planet.removed is False)
 
 def render_planet_info(surface, planets, font, alpha=200, x=10, y=10, spacing=4):
     lines = []
     for i, planet in enumerate(planets):
-        text = f"{i+1:<2}| EXPULSED" if planet.expulsed else f"{i+1:<2}| COLLIDED" if planet.collided else f"{i+1:<2}| ({int(planet.x)}, {int(planet.y)})"
+        text = f"{i+1:<2}| EXPULSED" if planet.expulsed else f"{i+1:<2}| COLLIDED" if planet.removed else f"{i+1:<2}| ({int(planet.x)}, {int(planet.y)})"
         lines.append(text)
 
     for k, line in enumerate(lines):
@@ -226,11 +240,9 @@ def main(n=2,*,precise_mode=False, precision=-1, no_collision=False, stable=Fals
     pygame.display.set_caption("N-Body Simulation")
     clock = pygame.time.Clock()
     running = True
-    paused = True
 
     #### SYSTEM CREATION HERE ####
     system = System(WINDOW, HEIGHT, WIDTH, n=n, no_collision=no_collision, stable=stable, sun=sun)
-
 
     while running:
         d_time = (clock.tick(60) / 1000.0) if precise_mode is False else mpf(0.003125)*system.n
@@ -262,13 +274,13 @@ no_erase={int(no_erase)};""")
                         for planet in system.planets:
                             planet.trail = []
                 if event.key == pygame.K_p:
-                    paused = not paused
+                    system.paused = not system.paused
                 if event.key == pygame.K_r:
                     for planet in system.planets:
                         planet.dx /= 2
                         planet.dy /= 2
-
-        if paused:
+        system.check_status()
+        if system.paused:
             system.draw_planets(info_toggle, trail_toggle)
         else:
             system.tick()
@@ -280,17 +292,17 @@ no_erase={int(no_erase)};""")
 
 if __name__ == "__main__":
     description = """\
-./n_body_simulation.py [-n PLANETS] [-p DIGITS] [--no_collision] [--stable] [--sun] [--save] [--load FILE] [--no-erase]
+./n_body_simulation.py [-n PLANETS] [-p DIGITS] [-PEs] [--no_collision] [--stable] [--sun] [--save FILE] [--load FILE]
 A simple n-body simulation, check out ./README.md for more info.
 
 -n PLANETS     | represents the number of planets to be simulated.
 -p DIGITS      | manually sets computational precision to DIGITS digits (can lead to stuttering at high values). Default is -1 (2048 distributed across planets).
 -P             | Enables Precise Mode, considerably increasing simulation precision by disregarding animation smoothness
+-E            | planets leave a permanent trail which can be erased with `t` keybind.
+-s          | selects a planet to be 800-1000 times heavier, acting like a sun.
 --no_collision | prevents colliding planets from being deleted.
 --stable       | makes planets' mass and starting velocities equal, leading to a gravitational equilibrium.
---sun          | selects a planet to be 800-1000 times heavier, acting like a sun.
 --save FILE    | upon closing the simulation, save prefs to FILE or `preferences.txt` if no FILE is provided. 
 --load FILE    | loads the preferences found at FILE, defaulting to `preferences.txt` if no FILE is provided. Loaded prefs are overriden by their respective flags.
---no_erase     | planets leave a permanent trail which can be erased with `t` keybind.
 """
-    main(8, precise_mode=True, precision=-1, no_collision=False, stable=True, sun=False, save=None, load=None, no_erase=True)
+    main(32, precise_mode=True, precision=-1, no_collision=False, stable=True, sun=False, save=None, load=None, no_erase=False)
