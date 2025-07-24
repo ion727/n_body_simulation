@@ -44,6 +44,7 @@ class Planet:
         else:
             self.dx = -sum(self.parent.initial_velocities_x)
             self.dy = -sum(self.parent.initial_velocities_y)
+            del self.parent.initial_velocities_x, self.parent.initial_velocities_y
 
     def subtick(self, planet):
         """
@@ -63,7 +64,7 @@ class Planet:
         if (r <= self.radius + planet.radius) and (self.parent.no_collision is False):
             return 1
         F = ((not self.parent.solar_system)*mpf(Constants.Simulation_Scale) + mpf(0.01)) * Constants.G * self.mass * planet.mass / r**2
-        frac = F / r / sqrt(self.parent.total_remaining)
+        frac = F / r / sqrt(self.parent.n)
         delta_x = dx*frac
         delta_y = dy*frac
         self.ax += delta_x
@@ -80,7 +81,7 @@ class Planet:
         if trail_toggle is True:
             self.trail.append((int(self.x), int(self.y)))
             if no_erase is False and len(self.trail) > 75:
-                self.trail.pop(0)#
+                self.trail.pop(0)
 
     def draw(self, surface, info_toggle, trail_toggle):        
         pygame.draw.circle(surface, self.colour, (int(self.x), int(self.y)), int(self.radius))
@@ -280,29 +281,29 @@ no_erase={int(no_erase)};""")
                         planet.dx /= 2
                         planet.dy /= 2
         system.check_status()
-        if system.paused:
-            system.draw_planets(info_toggle, trail_toggle)
-        else:
-            system.tick()
-            system.draw_planets(info_toggle, trail_toggle)
+        if not system.paused:
+            # update before tick so that ax & ay dont become obsolete
             system.update_all(d_time, trail_toggle, no_erase)
+            system.tick()
+        system.draw_planets(info_toggle, trail_toggle)
         if info_toggle == True:
             render_planet_info(WINDOW, system.planets, font)
         pygame.display.update()
 
 if __name__ == "__main__":
     description = """\
-./n_body_simulation.py [-n PLANETS] [-p DIGITS] [-PEs] [--no_collision] [--stable] [--sun] [--save FILE] [--load FILE]
+./n_body_simulation.py [-n <PLANETS>] [-p <NUM>] [-t <NUM>] [-PEs] [--no_collision] [--stable] [--sun] [--save <FILE>] [--load <FILE>]
 A simple n-body simulation, check out ./README.md for more info.
 
--n PLANETS     | represents the number of planets to be simulated.
--p DIGITS      | manually sets computational precision to DIGITS digits (can lead to stuttering at high values). Default is -1 (2048 distributed across planets).
+-n <PLANETS>     | represents the number of planets to be simulated.
+-p <NUM>      | manually sets computational precision to NUM digits (can lead to stuttering at high values). Default is -1 (2048 distributed across planets).
 -P             | Enables Precise Mode, considerably increasing simulation precision by disregarding animation smoothness
--E            | planets leave a permanent trail which can be erased with `t` keybind.
--s          | selects a planet to be 800-1000 times heavier, acting like a sun.
+-E             | planets leave a permanent trail which can be erased with `t` keybind.
+-s             | selects a planet to be 800-1000 times heavier, acting like a sun.
+-t <NUM>         | makes the trails NUM positions long
 --no_collision | prevents colliding planets from being deleted.
 --stable       | makes planets' mass and starting velocities equal, leading to a gravitational equilibrium.
---save FILE    | upon closing the simulation, save prefs to FILE or `preferences.txt` if no FILE is provided. 
---load FILE    | loads the preferences found at FILE, defaulting to `preferences.txt` if no FILE is provided. Loaded prefs are overriden by their respective flags.
+--save <FILE>    | upon closing the simulation, save prefs to FILE or `preferences.txt` if no FILE is provided. 
+--load <FILE>    | loads the preferences found at FILE, defaulting to `preferences.txt` if no FILE is provided. Loaded prefs are overriden by their respective flags.
 """
-    main(32, precise_mode=True, precision=-1, no_collision=False, stable=True, sun=False, save=None, load=None, no_erase=False)
+    main(3, precise_mode=True, precision=-1, no_collision=False, stable=True, sun=False, save=None, load=None, no_erase=False)
