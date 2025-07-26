@@ -1,6 +1,6 @@
 figure out speed (WIP)
 ✔ acceleration and velocity correctly update depending on d_time
-✕ initial velocities scale correctly as n increases
+✔ initial velocities scale correctly as n increases
 ✕ speed controller using keyboard arrows
     ✔ fix d_time
     ✕ take keyboard input from pygame.event.get()

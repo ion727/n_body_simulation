@@ -19,7 +19,7 @@ class Planet:
         self.x, self.y = mpf(coords[0]), mpf(coords[1])
         self.dx = self.dy = self.ax = self.ay = mpf(0)
         self.mass = mpf(Constants.rand_mass() if parent.stable is False else 3*Constants.mass_const)
-        self.radius = max(int(ceil(mpf(20) / mpf(parent.n))), mpf(2))
+        self.radius = max(int(ceil(mpf(40) / mpf(parent.n))), mpf(3))
         self.colour = (random.randint(100,255), random.randint(100,255), random.randint(100,255))
         self.index = index
         if sun is True:
@@ -30,29 +30,14 @@ class Planet:
         self.is_sun = sun
         if sun:
             self.radius *= 3
-
-        # Compute angle between current planet and system center
-        theta = atan2(self.y - mpf(parent.HEIGHT) / 2, self.x - mpf(parent.WIDTH) / 2)
-        speed =  mpf(300*root(parent.n, 3)*Constants.mass_const)
-        self.dx = -sin(theta) * speed
-        self.dy =  cos(theta) * speed
-
-        # Set last body's velocity to balance net momentum to zero
-        if self.index != parent.n - 1:
-            self.parent.initial_velocities_x.append(self.dx)
-            self.parent.initial_velocities_y.append(self.dy)
-        else:
-            self.dx = -sum(self.parent.initial_velocities_x)
-            self.dy = -sum(self.parent.initial_velocities_y)
-            del self.parent.initial_velocities_x, self.parent.initial_velocities_y
-
-    def subtick(self, planet, d_time):
+    def subelse(self, planet, d_time):
         """
         OUTPUT:
         0 -- updated successfully
         1 -- collision
         2 -- expulsion
         """
+        # create expulsion bounding box
         h_WIDTH = self.parent.WIDTH // 2
         h_HEIGHT = self.parent.HEIGHT // 2
         if not ((-h_WIDTH < self.x < h_WIDTH*3) and (-h_HEIGHT < self.y < h_HEIGHT*3)):
@@ -80,14 +65,16 @@ class Planet:
             raise ValueError(f"Warning: Invalid position x={self.x}, y={self.y} for planet {self.index}")
         if trail_toggle is True:
             self.trail.append((int(self.x), int(self.y)))
-            if no_erase is False and len(self.trail) > 75:
+            if no_erase is False and len(self.trail) > 150:
                 self.trail.pop(0)
 
     def draw(self, surface, info_toggle, trail_toggle):        
         pygame.draw.circle(surface, self.colour, (int(self.x), int(self.y)), int(self.radius))
         if trail_toggle is True:
             if len(self.trail) > 1:
-                pygame.draw.aalines(surface, self.colour, False, self.trail)
+                width = int(ceil(self.radius/10))
+                draw_lines = pygame.draw.lines if width > 1 else pygame.draw.aalines
+                draw_lines(surface, self.colour, False, self.trail, width)
         if info_toggle is True:
             pygame.draw.line(surface, (200,0,0), 
                              (int(self.x), int(self.y)), 
@@ -97,7 +84,9 @@ class Planet:
                              (int(self.x), int(self.y)), 
                              (int(self.x + float(self.dx / self.mass)), 
                               int(self.y + float(self.dy / self.mass))), 3)
-
+    def init_velocities(self):
+        self.dx =  self.ay*75 / root(self.parent.n,2)
+        self.dy = -self.ax*75 / root(self.parent.n,2)
 class System:
     def __str__(self):
         return "[" + "\n ".join([f"{planet.index}: ({int(planet.x)}, {int(planet.y)}), removed={planet.removed}" for planet in self.planets]) + "]\n"
@@ -110,13 +99,10 @@ class System:
         self.n = n
         self.total_remaining = n
         self.planets = []
-        self.initial_velocities_x = []
-        self.initial_velocities_y = []
         self.no_collision = no_collision
         self.solar_system = sun
         self.stable = stable
         self.paused = True
-
 
         for i in range(n):
             theta = mpf(2) * mp.pi * i / n  # Evenly spaced angle around circle
@@ -126,15 +112,21 @@ class System:
                 self.planets.append(Planet((x, y), parent=self, index=i, sun=True))
                 continue
             self.planets.append(Planet((x, y), parent=self, index=i))
+        self.init()
+        
+    def init(self):
+        self.compute_planet_accels(mpf(1)/60)
+        for planet in self.planets:
+            planet.init_velocities()
 
-    def tick(self, d_time):
+    def compute_planet_accels(self, d_time=1/60):
         for current in self.remaining_planets:
             current.ax = mpf(0)
             current.ay = mpf(0)
             for planet in self.remaining_planets:
                 if current is planet:
                     continue
-                out=current.subtick(planet, d_time)
+                out=current.subelse(planet, d_time)
                 if out == 1 and self.no_collision is False:
                     if not current.is_sun:
                         current.removed = True
@@ -241,7 +233,7 @@ def main(n=2,*,precise_mode=False, precision=-1, no_collision=False, stable=Fals
 
     #### SYSTEM CREATION HERE ####
     system = System(WINDOW, HEIGHT, WIDTH, n=n, no_collision=no_collision, stable=stable, sun=sun)
-    system.tick(1/60)
+    system.init()
 
     running = True
     while running:
@@ -281,9 +273,9 @@ no_erase={int(no_erase)};""")
                         planet.dy /= 2
         system.check_status()
         if not system.paused:
-            # update before tick so that ax & ay dont become obsolete
+            # update before compute_planet_accels so that ax & ay dont become obsolete
             system.update_all(d_time, trail_toggle, no_erase)
-            system.tick(d_time)
+            system.compute_planet_accels(d_time)
             #print([(round(planet.x,2),round(planet.y,2)) for planet in system.planets])
         system.draw_planets(info_toggle, trail_toggle)
         if info_toggle == True:
@@ -307,7 +299,7 @@ A simple n-body simulation, check out ./README.md for more info.
 --load <FILE>  | loads the preferences found at <FILE>, defaulting to `preferences.txt` if none provided. Loaded prefs are overriden by their respective flags.
 """
     main(\
-    n=16,
+    n=32,
     precise_mode=True,
     precision=-1,
     no_collision=False,
