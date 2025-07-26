@@ -1,7 +1,12 @@
-
 figure out speed (WIP)
+✔ acceleration and velocity correctly update depending on d_time
+✕ initial velocities scale correctly as n increases
+✕ speed controller using keyboard arrows
 
 make collided planets' trails be drawn on behalf of system
-+ adjustable trail lengths
+✕ adjustable trail lengths
 
 fix/overhaul file loading
+✔ arguments can be passed to main()
+✕ override happens outside of func
+✕ flags can be taken from terminal
