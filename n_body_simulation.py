@@ -8,7 +8,7 @@ from mpmath import mp, mpf, sqrt, sin, cos, atan2, ceil, root
 class Constants:
     G = mpf("6.67430e-11")
     Simulation_Scale = mpf("7")
-    mass_const = mpf(1e14)
+    mass_const = mpf(5e15)
     #@property
     def rand_mass():
         return random.randint(int(2*Constants.mass_const),int(3*Constants.mass_const))
@@ -17,8 +17,8 @@ class Planet:
     def __init__(self, coords=(0,0), /, *, parent=None, index=None, sun=False):
         self.parent = parent
         self.x, self.y = mpf(coords[0]), mpf(coords[1])
-        self.ax = self.ay = mpf(0)
-        self.mass = mpf(Constants.rand_mass() if parent.stable is False else 3e14)
+        self.dx = self.dy = self.ax = self.ay = mpf(0)
+        self.mass = mpf(Constants.rand_mass() if parent.stable is False else 3*Constants.mass_const)
         self.radius = max(int(ceil(mpf(20) / mpf(parent.n))), mpf(2))
         self.colour = (random.randint(100,255), random.randint(100,255), random.randint(100,255))
         self.index = index
@@ -33,7 +33,7 @@ class Planet:
 
         # Compute angle between current planet and system center
         theta = atan2(self.y - mpf(parent.HEIGHT) / 2, self.x - mpf(parent.WIDTH) / 2)
-        speed =  mpf(200*root(parent.n, 4)*Constants.mass_const)
+        speed =  mpf(300*root(parent.n, 3)*Constants.mass_const)
         self.dx = -sin(theta) * speed
         self.dy =  cos(theta) * speed
 
@@ -46,7 +46,7 @@ class Planet:
             self.dy = -sum(self.parent.initial_velocities_y)
             del self.parent.initial_velocities_x, self.parent.initial_velocities_y
 
-    def subtick(self, planet):
+    def subtick(self, planet, d_time):
         """
         OUTPUT:
         0 -- updated successfully
@@ -64,7 +64,7 @@ class Planet:
         if (r <= self.radius + planet.radius) and (self.parent.no_collision is False):
             return 1
         F = ((not self.parent.solar_system)*mpf(Constants.Simulation_Scale) + mpf(0.01)) * Constants.G * self.mass * planet.mass / r**2
-        frac = F / r / sqrt(self.parent.n)
+        frac = F * mpf(d_time) / r
         delta_x = dx*frac
         delta_y = dy*frac
         self.ax += delta_x
@@ -95,8 +95,8 @@ class Planet:
                               int(self.y + float(self.ay / self.mass * 10))), 3)
             pygame.draw.line(surface, (200,200,0), 
                              (int(self.x), int(self.y)), 
-                             (int(self.x + float(self.dx / self.mass/5)), 
-                              int(self.y + float(self.dy / self.mass/5))), 3)
+                             (int(self.x + float(self.dx / self.mass)), 
+                              int(self.y + float(self.dy / self.mass))), 3)
 
 class System:
     def __str__(self):
@@ -127,14 +127,14 @@ class System:
                 continue
             self.planets.append(Planet((x, y), parent=self, index=i))
 
-    def tick(self):
+    def tick(self, d_time):
         for current in self.remaining_planets:
             current.ax = mpf(0)
             current.ay = mpf(0)
             for planet in self.remaining_planets:
                 if current is planet:
                     continue
-                out=current.subtick(planet)
+                out=current.subtick(planet, d_time)
                 if out == 1 and self.no_collision is False:
                     if not current.is_sun:
                         current.removed = True
@@ -143,13 +143,11 @@ class System:
                     if not planet.is_sun:
                         planet.removed = True
                         self.total_remaining -= 1
-                        #print(f"planet 2: {planet.index}: COLLIDED. Remaining: {self.total_remaining}")
                     break
                 elif out == 2:
                     current.removed = True
                     current.expulsed = True
                     self.total_remaining -= 1
-                    #print(f"planet {current.index}: EXPULSED. Remaining: {self.total_remaining}")
                     break
     def draw_planets(self, info_toggle, trail_toggle):
         for planet in self.remaining_planets:
@@ -240,13 +238,14 @@ def main(n=2,*,precise_mode=False, precision=-1, no_collision=False, stable=Fals
     font = pygame.font.SysFont("Consolas", 12)
     pygame.display.set_caption("N-Body Simulation")
     clock = pygame.time.Clock()
-    running = True
 
     #### SYSTEM CREATION HERE ####
     system = System(WINDOW, HEIGHT, WIDTH, n=n, no_collision=no_collision, stable=stable, sun=sun)
+    system.tick(1/60)
 
+    running = True
     while running:
-        d_time = (clock.tick(60) / 1000.0) if precise_mode is False else mpf(0.003125)*system.n
+        d_time = (clock.tick(60) / 1000.0) if precise_mode is False else mpf(0.003125)#*system.n
         WINDOW.fill((0,0,0))
 
         for event in pygame.event.get():
@@ -284,7 +283,8 @@ no_erase={int(no_erase)};""")
         if not system.paused:
             # update before tick so that ax & ay dont become obsolete
             system.update_all(d_time, trail_toggle, no_erase)
-            system.tick()
+            system.tick(d_time)
+            #print([(round(planet.x,2),round(planet.y,2)) for planet in system.planets])
         system.draw_planets(info_toggle, trail_toggle)
         if info_toggle == True:
             render_planet_info(WINDOW, system.planets, font)
@@ -295,15 +295,24 @@ if __name__ == "__main__":
 ./n_body_simulation.py [-n <PLANETS>] [-p <NUM>] [-t <NUM>] [-PEs] [--no_collision] [--stable] [--sun] [--save <FILE>] [--load <FILE>]
 A simple n-body simulation, check out ./README.md for more info.
 
--n <PLANETS>     | represents the number of planets to be simulated.
--p <NUM>      | manually sets computational precision to NUM digits (can lead to stuttering at high values). Default is -1 (2048 distributed across planets).
+-n <NUM>       | creates <NUM> planets to be simulated.
+-p <NUM>       | manually sets computational precision to <NUM> digits (can lead to stuttering at high values). Default is -1 (2048 distributed across planets).
 -P             | Enables Precise Mode, considerably increasing simulation precision by disregarding animation smoothness
 -E             | planets leave a permanent trail which can be erased with `t` keybind.
 -s             | selects a planet to be 800-1000 times heavier, acting like a sun.
--t <NUM>         | makes the trails NUM positions long
+-t <NUM>       | makes the trails <NUM> positions long
 --no_collision | prevents colliding planets from being deleted.
 --stable       | makes planets' mass and starting velocities equal, leading to a gravitational equilibrium.
---save <FILE>    | upon closing the simulation, save prefs to FILE or `preferences.txt` if no FILE is provided. 
---load <FILE>    | loads the preferences found at FILE, defaulting to `preferences.txt` if no FILE is provided. Loaded prefs are overriden by their respective flags.
+--save <FILE>  | upon closing the simulation, save prefs to <FILE> or `preferences.txt` if none provided. 
+--load <FILE>  | loads the preferences found at <FILE>, defaulting to `preferences.txt` if none provided. Loaded prefs are overriden by their respective flags.
 """
-    main(3, precise_mode=True, precision=-1, no_collision=False, stable=True, sun=False, save=None, load=None, no_erase=False)
+    main(\
+    n=16,
+    precise_mode=True,
+    precision=-1,
+    no_collision=False,
+    stable=True,
+    sun=False,
+    save=None,
+    load=None,
+    no_erase=False)
