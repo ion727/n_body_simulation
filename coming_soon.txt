@@ -1,9 +1,10 @@
-figure out speed (WIP)
+add simulation speed
 ✔ acceleration and velocity correctly update depending on d_time
 ✔ initial velocities scale correctly as n increases
-✕ speed controller using keyboard arrows
+✔ speed controller using keyboard arrows
     ✔ fix d_time
-    ✕ take keyboard input from pygame.event.get()
+    ✔ take keyboard input from pygame.event.get()
+    ✔ display simulation speed in top right corner
 
 
 make collided planets' trails be drawn on behalf of system
