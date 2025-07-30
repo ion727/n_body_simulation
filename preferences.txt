@@ -1,9 +1,7 @@
-n=2;
-precise_mode=1;
+n=3;
+precise_mode=0;
 precision=-1;
-info_toggle=0;
-trail_toggle=1;
 no_collision=0;
 stable=1;
 sun=0;
-no_erase=1;
+no_erase=0;
