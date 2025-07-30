@@ -59,7 +59,7 @@ class Planet:
         self.dy += delta_y
         return 0
 
-    def update(self, d_time, trail_toggle, no_erase):
+    def update(self, d_time, trail_toggle, trail_length, no_erase):
         self.x += self.dx / self.mass * mpf(d_time)
         self.y += self.dy / self.mass * mpf(d_time)
         if not isinstance(self.x, mpf) or not isinstance(self.y, mpf):
@@ -150,9 +150,9 @@ class System:
     def draw_planets(self, info_toggle, trail_toggle, speed_controller):
         for planet in self.remaining_planets:
             planet.draw(self.WINDOW, info_toggle, trail_toggle, speed_controller)
-    def update_all(self, d_time, trail_toggle, no_erase):
+    def update_all(self, d_time, trail_toggle, trail_length, no_erase):
         for planet in self.remaining_planets:
-            planet.update(d_time, trail_toggle, no_erase)
+            planet.update(d_time, trail_toggle, trail_length, no_erase)
     def check_status(self):
         for planet in self.planets:
             planet.expulsed = planet.IsExpulsed
@@ -234,7 +234,17 @@ def load_settings(load, **overrides):
         settings["no_erase"]
     )
 
-def main(n=2,*,precise_mode=False, precision=-1, no_collision=False, stable=False, sun=False, save=None, load=None, no_erase=False):
+def main(n=2,
+        *,
+        precision=-1,
+        trail_length=300,
+        precise_mode=False,
+        no_collision=False,
+        stable=False,
+        sun=False,
+        save=None,
+        load=None, 
+        no_erase=False):
     info_toggle = False
     trail_toggle = True
     default_file = "preferences.txt"
@@ -300,13 +310,14 @@ no_erase={int(no_erase)};""")
                     speed_controller *= mpf("1.25")
                 if event.key == pygame.K_DOWN:
                     speed_controller /= mpf("1.25")
+        
         system.check_status()
         if not system.paused:
             # update before compute_planet_accels so that ax & ay dont become obsolete
-            system.update_all(d_time, trail_toggle, no_erase)
+            system.update_all(d_time, trail_toggle, trail_length, no_erase)
             system.compute_planet_accels(d_time)
-            #print([(round(planet.x,2),round(planet.y,2)) for planet in system.planets])
         system.draw_planets(info_toggle, trail_toggle, speed_controller)
+        
         if info_toggle == True:
             render_planet_info(WINDOW, system.planets, font)
         render_simulation_speed(WINDOW, speed_controller, font)
@@ -314,7 +325,7 @@ no_erase={int(no_erase)};""")
 
 if __name__ == "__main__":
     description = """\
-./n_body_simulation.py [-n <PLANETS>] [-p <NUM>] [-t <NUM>] [-PEs] [--no_collision] [--stable] [--sun] [--save <FILE>] [--load <FILE>]
+./n_body_simulation.py [-n <NUM>] [-p <NUM>] [-t <NUM>] [-PEs] [--no_collision] [--stable] [--sun] [--save <FILE>] [--load <FILE>]
 A simple n-body simulation, check out ./README.md for more info.
 
 -n <NUM>       | creates <NUM> planets to be simulated.
@@ -322,7 +333,7 @@ A simple n-body simulation, check out ./README.md for more info.
 -P             | Enables Precise Mode, considerably increasing simulation precision by disregarding animation smoothness
 -E             | planets leave a permanent trail which can be erased with `t` keybind.
 -s             | selects a planet to be 800-1000 times heavier, acting like a sun.
--t <NUM>       | makes the trails <NUM> positions long
+-t <NUM>       | makes the trails <NUM> positions long. Overriden by `-s`
 --no_collision | prevents colliding planets from being deleted.
 --stable       | makes planets' mass and starting velocities equal, leading to a gravitational equilibrium.
 --save <FILE>  | upon closing the simulation, save prefs to <FILE> or `preferences.txt` if none provided. 
@@ -330,8 +341,9 @@ A simple n-body simulation, check out ./README.md for more info.
 """
     main(\
     n=8,
-    precise_mode=True,
     precision=-1,
+    trail_length=300,
+    precise_mode=True,
     no_collision=False,
     stable=True,
     sun=False,
