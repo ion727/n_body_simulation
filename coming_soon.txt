@@ -1,10 +1,4 @@
-✔ fix/overhaul file loading
-    ✔ arguments can be passed through main()
-    ✔ successful data extraction
-    ✔ override successful
-    ✔ flags can be taken from terminal
-
 ✕ save/load entire simulations
-    ✕ trail positions saved to file
-        ✕ `-o` flag to save to file
-    ✕ loading from file
+    ✕ trail positions saved to data.txt
+        ✕ `-o` flag to save to data.txt
+    ✕ loading from data.txt
