@@ -1,6 +1,7 @@
-✕ make collided planets' trails continue being drawn
-    ✕ calls from system.draw_planets
-        ✕ split out draw_trail from update()
+✔ make collided planets' trails continue being drawn
+    ✔ calls from system.draw_planets
+        ✔ split out draw_trail from update()
+        ✔ smoothly erase trails after collision/expulsion
     ✔ adjustable trail lengths
         ✔ flag description in --help
         ✔ flag description in README.md

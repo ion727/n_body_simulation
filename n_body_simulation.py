@@ -1,7 +1,7 @@
 '''
 author: ion727
 '''
-import random
+from random import randint
 import pygame
 from mpmath import mp, mpf, sqrt, sin, cos, atan2, ceil, root
 
@@ -11,7 +11,7 @@ class Constants:
     mass_const = mpf(5e15)
     #@property
     def rand_mass():
-        return random.randint(int(2*Constants.mass_const),int(3*Constants.mass_const))
+        return randint(int(mpf("1.5")*Constants.mass_const),int(3*Constants.mass_const))
 
 class Planet:
     def __init__(self, coords=(0,0), /, *, parent=None, index=None, sun=False):
@@ -20,10 +20,10 @@ class Planet:
         self.dx = self.dy = self.ax = self.ay = mpf(0)
         self.mass = mpf(Constants.rand_mass() if parent.stable is False else 3*Constants.mass_const)
         self.radius = max(int(ceil(mpf(40) / mpf(parent.n))), mpf(3))
-        self.colour = (random.randint(100,255), random.randint(100,255), random.randint(100,255))
+        self.colour = (randint(100,255), randint(100,255), randint(100,255))
         self.index = index
         if sun is True:
-            self.mass *= mpf(random.randint(800, 1000))
+            self.mass *= mpf(randint(800, 1000))
         self.removed = False
         self.expulsed = False
         self.trail = []
@@ -62,15 +62,23 @@ class Planet:
     def update(self, d_time, trail_toggle, trail_length, no_erase):
         self.x += self.dx / self.mass * mpf(d_time)
         self.y += self.dy / self.mass * mpf(d_time)
+        
+        # raise error if complex numbers slip in
         if not isinstance(self.x, mpf) or not isinstance(self.y, mpf):
-            raise ValueError(f"Warning: Invalid position x={self.x}, y={self.y} for planet {self.index}")
-        if trail_toggle is True:
-            self.trail.append((int(self.x), int(self.y)))
-            if no_erase is False and len(self.trail) > 300:
-                self.trail.pop(0)
+            raise ValueError(f"Error: Invalid position x={self.x}, y={self.y} for planet {self.index}")
 
+    def update_trail(self, trail_length, no_erase):
+        if not self.removed:
+            self.trail.append((int(self.x), int(self.y)))
+        else:
+            if len(self.trail) != 0:
+                self.trail.pop(0)
+            return
+        if no_erase is False and len(self.trail) > 300:
+            self.trail.pop(0)
     def draw(self, surface, info_toggle, trail_toggle, speed_controller):        
-        pygame.draw.circle(surface, self.colour, (int(self.x), int(self.y)), int(self.radius))
+        if not self.removed:
+            pygame.draw.circle(surface, self.colour, (int(self.x), int(self.y)), int(self.radius))
         if trail_toggle is True:
             if len(self.trail) > 1:
                 width = int(ceil(self.radius/10))
@@ -103,7 +111,6 @@ class System:
         self.WIDTH = WIDTH
         self.r = min(HEIGHT, WIDTH) // 4
         self.n = n
-        self.total_remaining = n
         self.planets = []
         self.no_collision = no_collision
         self.solar_system = sun
@@ -136,30 +143,28 @@ class System:
                 if out == 1 and self.no_collision is False:
                     if not current.is_sun:
                         current.removed = True
-                        self.total_remaining -= 1
-                        #print(f"planet 1: {current.index}: COLLIDED. Remaining: {self.total_remaining}")
+                        #print(f"planet 1: {current.index}: COLLIDED. Remaining: {sum((int(planet.removed) for planet in self.planets))}")
                     if not planet.is_sun:
                         planet.removed = True
-                        self.total_remaining -= 1
                     break
                 elif out == 2:
                     current.removed = True
                     current.expulsed = True
-                    self.total_remaining -= 1
                     break
     def draw_planets(self, info_toggle, trail_toggle, speed_controller):
-        for planet in self.remaining_planets:
+        for planet in self.planets:
             planet.draw(self.WINDOW, info_toggle, trail_toggle, speed_controller)
-    def update_all(self, d_time, trail_toggle, trail_length, no_erase):
+    def update_trails(self, trail_length, no_erase):
+        for planet in self.planets:
+            planet.update_trail(trail_length, no_erase)
+    def update_positions(self, d_time, trail_toggle, trail_length, no_erase):
         for planet in self.remaining_planets:
             planet.update(d_time, trail_toggle, trail_length, no_erase)
     def check_status(self):
         for planet in self.planets:
             planet.expulsed = planet.IsExpulsed
-        if self.total_remaining == 0:
+        if all((planet.removed for planet in self.planets)):
             self.paused = True
-        if self.total_remaining < 0:
-            raise ValueError(f"Remaining planets: expected positive integer, got {self.total_remaining}")
     @property
     def remaining_planets(self):
         return (planet for planet in self.planets if planet.removed is False)
@@ -272,8 +277,6 @@ def main(n=2,
         d_time = (clock.tick(60) / 1000.0) if precise_mode is False else mpf(0.003125)#*system.n
         d_time *= speed_controller
         WINDOW.fill((0,0,0))
-        if len(list(system.remaining_planets)) < 3:
-            print([(planet.IsExpulsed,planet.expulsed,planet.removed) for planet in system.remaining_planets])
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
@@ -314,11 +317,13 @@ no_erase={int(no_erase)};""")
         system.check_status()
         if not system.paused:
             # update before compute_planet_accels so that ax & ay dont become obsolete
-            system.update_all(d_time, trail_toggle, trail_length, no_erase)
+            system.update_positions(d_time, trail_toggle, trail_length, no_erase)
+            if trail_toggle:
+                system.update_trails(trail_length, no_erase)
             system.compute_planet_accels(d_time)
         system.draw_planets(info_toggle, trail_toggle, speed_controller)
         
-        if info_toggle == True:
+        if info_toggle:
             render_planet_info(WINDOW, system.planets, font)
         render_simulation_speed(WINDOW, speed_controller, font)
         pygame.display.update()
@@ -339,14 +344,14 @@ A simple n-body simulation, check out ./README.md for more info.
 --save <FILE>  | upon closing the simulation, save prefs to <FILE> or `preferences.txt` if none provided. 
 --load <FILE>  | loads the preferences found at <FILE>, defaulting to `preferences.txt` if none provided. Loaded prefs are overriden by their respective flags.
 """
-    main(\
-    n=8,
-    precision=-1,
-    trail_length=300,
-    precise_mode=True,
-    no_collision=False,
-    stable=True,
-    sun=False,
-    save=None,
-    load=None,
-    no_erase=False)
+    main(n=8,
+        precision=-1,
+        trail_length=300,
+        precise_mode=True,
+        no_collision=False,
+        stable=False,
+        sun=False,
+        save=None,
+        load=None,
+        no_erase=False)
+    
