@@ -1,16 +1,8 @@
-✔ make collided planets' trails continue being drawn
-    ✔ calls from system.draw_planets
-        ✔ split out draw_trail from update()
-        ✔ smoothly erase trails after collision/expulsion
-    ✔ adjustable trail lengths
-        ✔ flag description in --help
-        ✔ flag description in README.md
-        ✔ LENGTH variable passed through draw_planets(), draw()
-
-✕ fix/overhaul file loading
-    ✔ arguments can be passed to main()
-    ✕ override happens outside of func
-    ✕ flags can be taken from terminal
+✔ fix/overhaul file loading
+    ✔ arguments can be passed through main()
+    ✔ successful data extraction
+    ✔ override successful
+    ✔ flags can be taken from terminal
 
 ✕ save/load entire simulations
     ✕ trail positions saved to file

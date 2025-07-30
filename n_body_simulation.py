@@ -4,6 +4,7 @@ author: ion727
 from random import randint
 import pygame
 from mpmath import mp, mpf, sqrt, sin, cos, atan2, ceil, root
+import argparse
 
 class Constants:
     G = mpf("6.67430e-11")
@@ -195,17 +196,27 @@ def render_simulation_speed(surface, speed_controller, font, alpha=200, margin=1
     surface.blit(text_surf, (x, y))
 
 def load_settings(load, **overrides):
-    # Default settings
+    # default settings
     settings = {
-        "n": 2,
+        "n": 3,
         "precision" : -1,
-        "info_toggle": False,
-        "trail_toggle": False,
+        "trail_length" : 300,
+        "precise_mode" : False,
         "no_collision": False,
-        "stable": False,
+        "stable": True,
         "sun": False,
         "no_erase":False
     }
+
+    overriden_settings = {}
+    # Find common keys
+    common_keys = settings.keys() & overrides.keys()
+    
+    for key in common_keys:
+        if settings[key] != overrides[key]:
+            overriden_settings[key] = overrides[key]
+    
+
     try:
         with open(load, "r") as fp:
             for line in fp:
@@ -216,23 +227,23 @@ def load_settings(load, **overrides):
                 key = key.strip()
                 value = value.strip()
                 if key in settings:
-                    if key in ("n","precision"):
+                    if key in ("n","precision","trail_length"):
                         settings[key] = int(value)
                     else:
                         settings[key] = bool(int(value))
     except FileNotFoundError:
         raise FileNotFoundError("LOAD file not found.")
 
-    for key, val in overrides.items():
+    for key, val in overriden_settings.items():
         if key not in settings:
             raise ValueError(f"Unexpected argument: {key}")
-            settings[key] = val
+        settings[key] = val
 
     return (
         settings["n"],
         settings["precision"],
-        settings["info_toggle"],
-        settings["trail_toggle"],
+        settings["precise_mode"],
+        settings["trail_length"],
         settings["no_collision"],
         settings["stable"],
         settings["sun"],
@@ -250,11 +261,32 @@ def main(n=2,
         save=None,
         load=None, 
         no_erase=False):
+
     info_toggle = False
     trail_toggle = True
+
     default_file = "preferences.txt"
+    if load and type(load) is not str:
+        load = default_file
+
     if load:
-        n, precision, info_toggle, trail_toggle, no_collision, stable, sun, no_erase = load_settings(n=n, no_collision=no_collision, stable=stable, sun=sun, precision=precision, no_erase=no_erase)
+        n,            \
+        precision,    \
+        precise_mode, \
+        trail_length, \
+        no_collision, \
+        stable,       \
+        sun,          \
+        no_erase =    \
+        load_settings(load,
+                    n=n, 
+                    precision=precision, 
+                    precise_mode=precise_mode, 
+                    trail_length=trail_length,
+                    no_collision=no_collision, 
+                    stable=stable, 
+                    sun=sun, 
+                    no_erase=no_erase)
 
     if (type(precision) is not int) or (precision == -1):
         mp.dps = 2048 // n
@@ -286,10 +318,9 @@ def main(n=2,
                     with open(save, "w") as fp:
                         fp.write( \
 f"""n={len(system.planets)};
-precise_mode={int(precise_mode)};
 precision={int(precision)};
-info_toggle={int(info_toggle)};
-trail_toggle={int(trail_toggle)};
+trail_length={int(trail_length)};
+precise_mode={int(precise_mode)};
 no_collision={int(no_collision)};
 stable={int(stable)};
 sun={int(sun)};
@@ -329,29 +360,72 @@ no_erase={int(no_erase)};""")
         pygame.display.update()
 
 if __name__ == "__main__":
-    description = """\
-./n_body_simulation.py [-n <NUM>] [-p <NUM>] [-t <NUM>] [-PEs] [--no_collision] [--stable] [--sun] [--save <FILE>] [--load <FILE>]
-A simple n-body simulation, check out ./README.md for more info.
+    parser = argparse.ArgumentParser(
+    description="A simple n-body simulation, check out ./README.md for more info."
+)
 
--n <NUM>       | creates <NUM> planets to be simulated.
--p <NUM>       | manually sets computational precision to <NUM> digits (can lead to stuttering at high values). Default is -1 (2048 distributed across planets).
--P             | Enables Precise Mode, considerably increasing simulation precision by disregarding animation smoothness
--E             | planets leave a permanent trail which can be erased with `t` keybind.
--s             | selects a planet to be 800-1000 times heavier, acting like a sun.
--t <NUM>       | makes the trails <NUM> positions long. Overriden by `-s`
---no_collision | prevents colliding planets from being deleted.
---stable       | makes planets' mass and starting velocities equal, leading to a gravitational equilibrium.
---save <FILE>  | upon closing the simulation, save prefs to <FILE> or `preferences.txt` if none provided. 
---load <FILE>  | loads the preferences found at <FILE>, defaulting to `preferences.txt` if none provided. Loaded prefs are overriden by their respective flags.
-"""
-    main(n=8,
-        precision=-1,
-        trail_length=300,
-        precise_mode=True,
-        no_collision=False,
-        stable=False,
-        sun=False,
-        save=None,
-        load=None,
-        no_erase=False)
+    parser.add_argument(
+        '-n', type=int, metavar='NUM', default=3,
+        help="Creates NUM planets to be simulated (default: 3)."
+    )
+
+    parser.add_argument(
+        '-p', type=int, metavar='NUM', default=-1,
+        help="Manually sets computational precision to NUM digits (can cause stuttering). Default is -1 (2048 distributed across planets)."
+    )
+
+    parser.add_argument(
+        '-t', type=int, metavar='NUM', default=300,
+        help="Makes the trails NUM positions long (default: 300). Overridden by `-s`."
+    )
+
+    parser.add_argument(
+        '-P',"--precise", action='store_true', default=False,
+        help="Enables Precise Mode, increasing simulation precision by disregarding animation smoothness."
+    )
+
+    parser.add_argument(
+        '--no_collision', action='store_true', default=False,
+        help="Prevents colliding planets from being deleted."
+    )
+
+    parser.add_argument(
+        '--stable', action='store_true', default=True,
+        help="Makes planets' mass and starting velocities equal, leading to gravitational equilibrium."
+    )
+
+    parser.add_argument(
+        '-s', '--sun', action='store_true', default=False,
+        help="Selects a planet to be 800-1000 times heavier, acting like a sun."
+    )
+
+    parser.add_argument(
+        '-E', '--no_erase', action='store_true', default=False,
+        help="Planets leave a permanent trail which can be erased with the `t` key."
+    )
+
+    parser.add_argument(
+        '--save',
+        nargs='?', const='preferences.txt', default=None, metavar='FILE',
+        help="Upon closing, save prefs to FILE or 'preferences.txt' if none provided."
+    )
+
+    parser.add_argument(
+        '--load',
+        nargs='?', const='preferences.txt', default=None, metavar='FILE',
+        help="Load prefs from FILE, defaulting to 'preferences.txt' if none provided."
+    )
+
+    args = parser.parse_args()
+
+    main(n=args.n,
+        precision=args.p,
+        trail_length=args.t,
+        precise_mode=args.precise,
+        no_collision=args.no_collision,
+        stable=args.stable,
+        sun=args.sun,
+        save=args.save,
+        load=args.load,
+        no_erase=args.no_erase)
     
