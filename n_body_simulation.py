@@ -60,7 +60,7 @@ class Planet:
         self.dy += delta_y
         return 0
 
-    def update(self, d_time, trail_toggle, trail_length, no_erase):
+    def update(self, d_time):
         self.x += self.dx / self.mass * mpf(d_time)
         self.y += self.dy / self.mass * mpf(d_time)
         
@@ -75,7 +75,7 @@ class Planet:
             if len(self.trail) != 0:
                 self.trail.pop(0)
             return
-        if no_erase is False and len(self.trail) > 300:
+        if no_erase is False and len(self.trail) > trail_length:
             self.trail.pop(0)
     def draw(self, surface, info_toggle, trail_toggle, speed_controller):        
         if not self.removed:
@@ -160,7 +160,7 @@ class System:
             planet.update_trail(trail_length, no_erase)
     def update_positions(self, d_time, trail_toggle, trail_length, no_erase):
         for planet in self.remaining_planets:
-            planet.update(d_time, trail_toggle, trail_length, no_erase)
+            planet.update(d_time)
     def check_status(self):
         for planet in self.planets:
             planet.expulsed = planet.IsExpulsed
@@ -376,7 +376,7 @@ if __name__ == "__main__":
 
     parser.add_argument(
         '-t', type=int, metavar='NUM', default=300,
-        help="Makes the trails NUM positions long (default: 300). Overridden by `-s`."
+        help="Makes the trails NUM positions long (default: 300). Overridden by `-E`."
     )
 
     parser.add_argument(
@@ -417,7 +417,6 @@ if __name__ == "__main__":
     )
 
     args = parser.parse_args()
-
     main(n=args.n,
         precision=args.p,
         trail_length=args.t,
